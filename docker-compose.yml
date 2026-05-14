@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: qazaqlearn-postgres
+    environment:
+      POSTGRES_DB: qazaqlearn
+      POSTGRES_USER: qazaqlearn
+      POSTGRES_PASSWORD: qazaqlearn
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qazaqlearn -d qazaqlearn"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ai-java:
+    build:
+      context: .
+      dockerfile: apps/ai-java/Dockerfile
+    container_name: qazaqlearn-ai-java
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/qazaqlearn
+      DB_USER: qazaqlearn
+      DB_PASSWORD: qazaqlearn
+      JWT_SECRET: ${JWT_SECRET:-change-me}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3-flash-preview}
+      GEMINI_FALLBACK_MODEL: ${GEMINI_FALLBACK_MODEL:-gemini-3.1-flash-lite}
+      GEMINI_PREVIEW_FALLBACK_MODEL: ${GEMINI_PREVIEW_FALLBACK_MODEL:-gemini-3.1-flash-lite-preview}
+      AI_MOCK_ENABLED: ${AI_MOCK_ENABLED:-true}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: qazaqlearn-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-java:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://qazaqlearn:qazaqlearn@postgres:5432/qazaqlearn
+      APP_URL: http://localhost:5173
+      AI_SERVICE_URL: http://ai-java:8080
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads_data:/app/apps/api/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/v1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: qazaqlearn-web
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      VITE_API_URL: http://localhost:3000/api/v1
+    ports:
+      - "5173:80"
+
+volumes:
+  postgres_data:
+  uploads_data:

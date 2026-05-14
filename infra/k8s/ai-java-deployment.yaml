@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qazaqlearn-ai-java
+  namespace: qazaqlearn
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: qazaqlearn-ai-java
+  template:
+    metadata:
+      labels:
+        app: qazaqlearn-ai-java
+    spec:
+      containers:
+        - name: ai-java
+          image: qazaqlearn/ai-java:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DATABASE_URL
+              value: jdbc:postgresql://postgres:5432/qazaqlearn
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: qazaqlearn-secrets
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: qazaqlearn-secrets
+                  key: POSTGRES_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: qazaqlearn-secrets
+                  key: JWT_SECRET
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: qazaqlearn-secrets
+                  key: GEMINI_API_KEY
+            - name: AI_MOCK_ENABLED
+              value: "true"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
