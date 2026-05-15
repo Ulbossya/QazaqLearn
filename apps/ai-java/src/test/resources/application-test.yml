@@ -1,0 +1,30 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:qazaqlearn;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate.dialect: org.hibernate.dialect.H2Dialect
+
+qazaqlearn:
+  jwt:
+    secret: test-secret-for-unit-tests-which-must-be-long-enough
+    clock-skew-seconds: 5
+  gemini:
+    api-key: ""
+    mock-enabled: true
+    model: gemini-mock
+    fallback-model: gemini-mock-fallback
+    preview-fallback-model: gemini-mock-preview
+    timeout-seconds: 5
+  cache:
+    chat-ttl-minutes: 60
+    test-gen-ttl-minutes: 1440
+  rate-limit:
+    student-per-hour: 20
+    teacher-per-hour: 50
+    admin-per-hour: 100

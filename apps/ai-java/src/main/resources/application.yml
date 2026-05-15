@@ -1,0 +1,57 @@
+server:
+  port: ${AI_PORT:8080}
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: qazaqlearn-ai
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/qazaqlearn}
+    username: ${PGUSER:${DB_USER:qazaqlearn}}
+    password: ${PGPASSWORD:${DB_PASSWORD:qazaqlearn}}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+qazaqlearn:
+  jwt:
+    secret: ${JWT_SECRET:change-me}
+    clock-skew-seconds: 30
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-3-flash-preview}
+    fallback-model: ${GEMINI_FALLBACK_MODEL:gemini-3.1-flash-lite}
+    preview-fallback-model: ${GEMINI_PREVIEW_FALLBACK_MODEL:gemini-3.1-flash-lite-preview}
+    mock-enabled: ${AI_MOCK_ENABLED:true}
+    timeout-seconds: 30
+  cache:
+    chat-ttl-minutes: 60
+    test-gen-ttl-minutes: 1440
+  rate-limit:
+    student-per-hour: 20
+    teacher-per-hour: 50
+    admin-per-hour: 100
+
+logging:
+  level:
+    root: INFO
+    kz.qazaqlearn.ai: DEBUG
