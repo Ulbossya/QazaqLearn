@@ -1,0 +1,356 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  DELETED
+}
+
+enum MaterialType {
+  TEXT
+  PDF
+  VIDEO_URL
+  FILE
+}
+
+enum QuestionType {
+  SINGLE
+  MULTIPLE
+  TEXT
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum NotificationType {
+  ENROLLMENT_CREATED
+  COURSE_PUBLISHED
+  TEST_COMPLETED
+  ROLE_CHANGED
+  USER_BLOCKED
+  AI_ERROR
+}
+
+enum AuditAction {
+  USER_ROLE_CHANGED
+  USER_STATUS_CHANGED
+  COURSE_CREATED
+  COURSE_UPDATED
+  COURSE_PUBLISHED
+  COURSE_ARCHIVED
+  COURSE_DELETED
+  MATERIAL_CREATED
+  MATERIAL_UPDATED
+  MATERIAL_DELETED
+  TEST_CREATED
+  TEST_SUBMITTED
+  AI_CHAT
+  AI_ERROR
+  CATEGORY_CREATED
+  CATEGORY_UPDATED
+}
+
+model User {
+  id                String             @id @default(uuid()) @db.Uuid
+  email             String             @unique
+  passwordHash      String             @map("password_hash")
+  fullName          String             @map("full_name")
+  preferredLanguage String             @default("ru") @map("preferred_language")
+  role              Role               @default(STUDENT)
+  status            UserStatus         @default(ACTIVE)
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  teacherCourses    Course[]           @relation("TeacherCourses")
+  enrollments       Enrollment[]
+  materialProgress  MaterialProgress[]
+  progress          Progress[]
+  testAttempts      TestAttempt[]
+  aiHistory         AiRequestHistory[]
+  aiUsageLimit      AiUsageLimit?
+  notifications     Notification[]
+  fileUploads       FileUpload[]
+  reviews           CourseReview[]
+  auditLogs         AuditLog[]          @relation("ActorAuditLogs")
+
+  @@map("users")
+}
+
+model CourseCategory {
+  id        String   @id @default(uuid()) @db.Uuid
+  nameRu    String   @map("name_ru")
+  nameKz    String   @map("name_kz")
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  courses   Course[]
+
+  @@map("course_categories")
+}
+
+model Course {
+  id            String           @id @default(uuid()) @db.Uuid
+  teacherId     String           @map("teacher_id") @db.Uuid
+  categoryId    String           @map("category_id") @db.Uuid
+  titleRu       String?          @map("title_ru")
+  titleKz       String?          @map("title_kz")
+  descriptionRu String?          @map("description_ru")
+  descriptionKz String?          @map("description_kz")
+  status        CourseStatus     @default(DRAFT)
+  price         Float            @default(0)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  createdBy     String?          @map("created_by") @db.Uuid
+  updatedBy     String?          @map("updated_by") @db.Uuid
+  deletedAt     DateTime?        @map("deleted_at")
+  teacher       User             @relation("TeacherCourses", fields: [teacherId], references: [id])
+  category      CourseCategory   @relation(fields: [categoryId], references: [id])
+  materials     CourseMaterial[]
+  enrollments   Enrollment[]
+  tests         CourseTest[]
+  progress      Progress[]
+  aiHistory     AiRequestHistory[]
+  reviews       CourseReview[]
+
+  @@index([status])
+  @@index([categoryId])
+  @@map("courses")
+}
+
+model CourseMaterial {
+  id               String             @id @default(uuid()) @db.Uuid
+  courseId         String             @map("course_id") @db.Uuid
+  titleRu          String?            @map("title_ru")
+  titleKz          String?            @map("title_kz")
+  type             MaterialType
+  contentRu        String?            @map("content_ru")
+  contentKz        String?            @map("content_kz")
+  fileUrl          String?            @map("file_url")
+  videoUrl         String?            @map("video_url")
+  orderIndex       Int                @default(0) @map("order_index")
+  isDeleted        Boolean            @default(false) @map("is_deleted")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  createdBy        String?            @map("created_by") @db.Uuid
+  updatedBy        String?            @map("updated_by") @db.Uuid
+  course           Course             @relation(fields: [courseId], references: [id])
+  materialProgress MaterialProgress[]
+  aiHistory        AiRequestHistory[]
+
+  @@index([courseId, orderIndex])
+  @@map("course_materials")
+}
+
+model Enrollment {
+  id          String           @id @default(uuid()) @db.Uuid
+  courseId    String           @map("course_id") @db.Uuid
+  studentId   String           @map("student_id") @db.Uuid
+  status      EnrollmentStatus @default(ACTIVE)
+  completedAt DateTime?        @map("completed_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  course      Course           @relation(fields: [courseId], references: [id])
+  student     User             @relation(fields: [studentId], references: [id])
+
+  @@unique([courseId, studentId])
+  @@map("enrollments")
+}
+
+model CourseTest {
+  id              String         @id @default(uuid()) @db.Uuid
+  courseId        String         @map("course_id") @db.Uuid
+  titleRu         String?        @map("title_ru")
+  titleKz         String?        @map("title_kz")
+  durationMinutes Int            @default(30) @map("duration_minutes")
+  passScore       Int            @default(70) @map("pass_score")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  createdBy       String?        @map("created_by") @db.Uuid
+  updatedBy       String?        @map("updated_by") @db.Uuid
+  course          Course         @relation(fields: [courseId], references: [id])
+  questions       TestQuestion[]
+  attempts        TestAttempt[]
+
+  @@map("tests")
+}
+
+model TestQuestion {
+  id             String       @id @default(uuid()) @db.Uuid
+  testId         String       @map("test_id") @db.Uuid
+  questionTextRu String?      @map("question_text_ru")
+  questionTextKz String?      @map("question_text_kz")
+  type           QuestionType @default(SINGLE)
+  options        Json
+  correctAnswer  String       @map("correct_answer")
+  points         Int          @default(1)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  createdBy      String?      @map("created_by") @db.Uuid
+  updatedBy      String?      @map("updated_by") @db.Uuid
+  test           CourseTest   @relation(fields: [testId], references: [id])
+
+  @@map("test_questions")
+}
+
+model TestAttempt {
+  id        String     @id @default(uuid()) @db.Uuid
+  testId    String     @map("test_id") @db.Uuid
+  studentId String     @map("student_id") @db.Uuid
+  answers   Json
+  score     Float
+  passed    Boolean
+  createdAt DateTime   @default(now()) @map("created_at")
+  test      CourseTest @relation(fields: [testId], references: [id])
+  student   User       @relation(fields: [studentId], references: [id])
+
+  @@index([testId, studentId])
+  @@map("test_attempts")
+}
+
+model MaterialProgress {
+  id          String         @id @default(uuid()) @db.Uuid
+  materialId  String         @map("material_id") @db.Uuid
+  studentId   String         @map("student_id") @db.Uuid
+  completedAt DateTime       @default(now()) @map("completed_at")
+  material    CourseMaterial @relation(fields: [materialId], references: [id])
+  student     User           @relation(fields: [studentId], references: [id])
+
+  @@unique([materialId, studentId])
+  @@map("material_progress")
+}
+
+model Progress {
+  id                 String   @id @default(uuid()) @db.Uuid
+  courseId           String   @map("course_id") @db.Uuid
+  studentId          String   @map("student_id") @db.Uuid
+  completedMaterials Int      @default(0) @map("completed_materials")
+  totalMaterials     Int      @default(0) @map("total_materials")
+  passedTests        Int      @default(0) @map("passed_tests")
+  totalTests         Int      @default(0) @map("total_tests")
+  percent            Float    @default(0)
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  course             Course   @relation(fields: [courseId], references: [id])
+  student            User     @relation(fields: [studentId], references: [id])
+
+  @@unique([courseId, studentId])
+  @@map("progress")
+}
+
+model AiRequestHistory {
+  id         String          @id @default(uuid()) @db.Uuid
+  userId     String          @map("user_id") @db.Uuid
+  courseId   String          @map("course_id") @db.Uuid
+  materialId String?         @map("material_id") @db.Uuid
+  message    String
+  answer     String
+  model      String
+  language   String
+  status     String          @default("SUCCESS")
+  createdAt  DateTime        @default(now()) @map("created_at")
+  user       User            @relation(fields: [userId], references: [id])
+  course     Course          @relation(fields: [courseId], references: [id])
+  material   CourseMaterial? @relation(fields: [materialId], references: [id])
+
+  @@index([userId, courseId, createdAt])
+  @@map("ai_request_history")
+}
+
+model AiUsageLimit {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @unique @map("user_id") @db.Uuid
+  requestsCount   Int      @default(0) @map("requests_count")
+  windowStartedAt DateTime @map("window_started_at")
+  user            User     @relation(fields: [userId], references: [id])
+
+  @@map("ai_usage_limits")
+}
+
+model AuditLog {
+  id         String      @id @default(uuid()) @db.Uuid
+  actorId    String?     @map("actor_id") @db.Uuid
+  action     AuditAction
+  entityType String      @map("entity_type")
+  entityId   String?     @map("entity_id") @db.Uuid
+  metadata   Json?
+  createdAt  DateTime    @default(now()) @map("created_at")
+  actor      User?       @relation("ActorAuditLogs", fields: [actorId], references: [id])
+
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  type      NotificationType
+  titleRu   String           @map("title_ru")
+  titleKz   String           @map("title_kz")
+  messageRu String           @map("message_ru")
+  messageKz String           @map("message_kz")
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at")
+  user      User             @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead, createdAt])
+  @@map("notifications")
+}
+
+model FileUpload {
+  id           String   @id @default(uuid()) @db.Uuid
+  uploadedBy   String   @map("uploaded_by") @db.Uuid
+  originalName String   @map("original_name")
+  storedName   String   @map("stored_name")
+  fileUrl      String   @map("file_url")
+  contentType  String   @map("content_type")
+  sizeBytes    BigInt   @map("size_bytes")
+  createdAt    DateTime @default(now()) @map("created_at")
+  user         User     @relation(fields: [uploadedBy], references: [id])
+
+  @@map("file_uploads")
+}
+
+model CourseReview {
+  id        String   @id @default(uuid()) @db.Uuid
+  courseId  String   @map("course_id") @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now()) @map("created_at")
+  course    Course   @relation(fields: [courseId], references: [id])
+  student   User     @relation(fields: [studentId], references: [id])
+
+  @@unique([courseId, studentId])
+  @@map("course_reviews")
+}
+
+model AiResponseCache {
+  id         String   @id @default(uuid()) @db.Uuid
+  promptHash String   @unique @map("prompt_hash")
+  model      String
+  language   String
+  answer     String
+  createdAt  DateTime @default(now()) @map("created_at")
+  expiresAt  DateTime @map("expires_at")
+
+  @@index([expiresAt])
+  @@map("ai_response_cache")
+}
